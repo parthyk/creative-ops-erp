@@ -30,5 +30,10 @@ export function useFetch<T = any>(path: string | null, options: { auto?: boolean
 
   const reload = useCallback(async () => load(), [load]);
 
+  useEffect(() => {
+    if (!path || options.auto === false) return;
+    load();
+  }, [load, path]);
+
   return { data, loading, error, reload, setData };
 }

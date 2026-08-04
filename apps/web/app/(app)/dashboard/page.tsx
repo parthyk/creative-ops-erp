@@ -20,7 +20,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const isManager = user?.role === 'MANAGER';
   const [period, setPeriod] = useState('month');
-  const { data: summary, loading } = useFetch<any>(`/dashboard/summary?period=${period}`);
+  const { data: summary, loading, error: summaryError, reload: reloadSummary } = useFetch<any>(`/dashboard/summary?period=${period}`);
   const { data: trend } = useFetch<any[]>(`/dashboard/trend?period=${period}`);
   const { data: growth } = useFetch<any>('/dashboard/growth');
   const { data: ranking } = useFetch<any[]>(isManager ? '/dashboard/ranking?period=month' : null);
@@ -76,6 +76,18 @@ export default function DashboardPage() {
           ]}
         />
       </PageHeader>
+
+      {summaryError && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-destructive">Failed to load dashboard data</p>
+            <p className="text-xs text-muted-foreground">{summaryError}</p>
+          </div>
+          <button onClick={() => reloadSummary()} className="rounded-lg bg-destructive px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

@@ -32,7 +32,10 @@ services:
       - key: S3_SECRET_KEY
         sync: false
       - key: REDIS_URL
-        value: redis://localhost:6379
+        fromService:
+          name: creative-ops-erp-redis
+          type: keyvalue
+          property: connectionString
       - key: JWT_SECRET
         sync: false
       - key: JWT_REFRESH_SECRET
@@ -41,6 +44,13 @@ services:
         fromDatabase:
           name: creative-ops-erp-db
           property: connectionString
+
+  - type: keyvalue
+    name: creative-ops-erp-redis
+    plan: starter
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
 
 databases:
   - name: creative-ops-erp-db
