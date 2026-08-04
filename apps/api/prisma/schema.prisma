@@ -1,0 +1,446 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MANAGER
+  EMPLOYEE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum TaskType {
+  Creative
+  Video
+  Carousel
+  Ads
+  Cover
+  Branding
+  Logo
+  Brochure
+  Presentation
+  Packaging
+  UiDesign
+  WebsiteBanner
+  SocialMedia
+  Special
+  LandingPage
+  Illustration
+  Animation
+  Other
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DELAYED
+  DONE
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ContractType {
+  RETAINER
+  PROJECT
+}
+
+enum ClientPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ClientStatus {
+  ACTIVE
+  ONBOARDING
+  PAUSED
+  CHURNED
+}
+
+enum StakeholderRole {
+  CREATIVE
+  SMM
+  SEO
+  SALES
+  DEVELOPMENT
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LeaveType {
+  CASUAL
+  SICK
+  EARNED
+  COMPENSATORY
+  OTHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+  HOLIDAY
+}
+
+enum NotificationType {
+  ASSIGNMENT
+  DUE_TODAY
+  DELAYED
+  APPROVAL
+  COMMENT
+  MENTION
+  TASK_UPDATE
+  SYSTEM
+}
+
+model User {
+  id                 String         @id @default(cuid())
+  email              String         @unique
+  password           String
+  name               String
+  role               Role           @default(EMPLOYEE)
+  avatar             String?
+  phone              String?
+  status             EmployeeStatus @default(ACTIVE)
+  isApprover         Boolean        @default(false)
+  workingHoursPerDay Float          @default(8)
+  joinedAt           DateTime       @default(now())
+  departmentId       String?
+  designation        String?
+
+  department          Department?        @relation("UserDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  headedDepartments   Department[]       @relation("DepartmentHead")
+  refreshTokens       RefreshToken[]
+  createdTasks        Task[]             @relation("AssignedTasks")
+  reviewedTasks       Task[]             @relation("ReviewedTasks")
+  assignedByMe        Task[]             @relation("AssignedByUser")
+  comments            TaskComment[]
+  notifications       Notification[]
+  activities          Activity[]
+  attendance          Attendance[]
+  leaves              Leave[]
+  approvedLeaves      Leave[]            @relation("ApprovedLeaves")
+  stakeholders        Stakeholder[]
+  stakeholderChanges  StakeholderHistory[] @relation("StakeholderChanged")
+  uploads             FileAsset[]
+  auditLogs           AuditLog[]
+  tasksFrom           TaskAssignment[]   @relation("TaskFromUser")
+  tasksTo             TaskAssignment[]   @relation("TaskToUser")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([departmentId])
+  @@index([role])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  jti       String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  ip        String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Department {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String?
+  color       String?
+  headId      String?
+  head        User?       @relation("DepartmentHead", fields: [headId], references: [id], onDelete: SetNull)
+  users       User[]      @relation("UserDepartment")
+  tasks       Task[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Client {
+  id            String          @id @default(cuid())
+  name          String
+  slug          String          @unique
+  logoUrl       String?
+  industry      String?
+  website       String?
+  contractType  ContractType    @default(RETAINER)
+  priority      ClientPriority  @default(MEDIUM)
+  status        ClientStatus    @default(ACTIVE)
+  brandColors   Json?
+  fonts         Json?
+  brandAssets   Json?
+  description   String?
+  startDate     DateTime?
+  endDate       DateTime?
+
+  stakeholders      Stakeholder[]
+  stakeholderLogs   StakeholderHistory[]
+  tasks             Task[]
+  files             FileAsset[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model Stakeholder {
+  id         String          @id @default(cuid())
+  clientId   String
+  role       StakeholderRole
+  employeeId String?
+  name       String?
+  email      String?
+  phone      String?
+  title      String?
+  isActive   Boolean         @default(true)
+  assignedAt DateTime        @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  employee User?  @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([role])
+  @@unique([clientId, role])
+}
+
+model StakeholderHistory {
+  id                     String          @id @default(cuid())
+  clientId               String
+  role                   StakeholderRole
+  previousStakeholderId  String?
+  newStakeholderId       String?
+  previousName           String?
+  newName                String?
+  reason                 String?
+  changedById            String?
+  date                   DateTime        @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  changedBy User?  @relation("StakeholderChanged", fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+}
+
+model Task {
+  id            String     @id @default(cuid())
+  date          DateTime   @default(now())
+  taskType      TaskType
+  taskName      String
+  description   String?
+  priority      Priority   @default(MEDIUM)
+  status        TaskStatus @default(TODO)
+  estimatedTime Float      @default(1)
+  actualTime    Float      @default(0)
+  taskCount     Int        @default(1)
+  attachments   Json?
+  reviewerId   String?
+  assignedById String?
+  completedAt   DateTime?
+  revisionCount Int        @default(0)
+  dueDate       DateTime?
+  isPersonal    Boolean    @default(false)
+
+  clientId     String?
+  departmentId String?
+  employeeId   String
+
+  client       Client?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  employee     User        @relation("AssignedTasks", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer     User?       @relation("ReviewedTasks", fields: [reviewerId], references: [id], onDelete: SetNull)
+  assignedBy   User?       @relation("AssignedByUser", fields: [assignedById], references: [id], onDelete: SetNull)
+  comments     TaskComment[]
+  files        FileAsset[]
+  assignments  TaskAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([clientId])
+  @@index([status])
+  @@index([date])
+}
+
+model TaskAssignment {
+  id          String   @id @default(cuid())
+  taskId      String
+  fromId      String?
+  toId        String?
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  task Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  from User?  @relation("TaskFromUser", fields: [fromId], references: [id], onDelete: SetNull)
+  to   User?  @relation("TaskToUser", fields: [toId], references: [id], onDelete: SetNull)
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  authorId  String
+  body      String
+  mentions  Json?
+  createdAt DateTime @default(now())
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String?
+  read      Boolean          @default(false)
+  taskId    String?
+  meta      Json?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  userId     String
+  userName   String?
+  action     String
+  entityType String?
+  entityId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+}
+
+model Attendance {
+  id          String           @id @default(cuid())
+  employeeId  String
+  date        DateTime
+  status      AttendanceStatus @default(PRESENT)
+  checkIn     DateTime?
+  checkOut    DateTime?
+  hoursWorked Float?
+  note        String?
+
+  employee User @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([date])
+}
+
+model Leave {
+  id           String     @id @default(cuid())
+  employeeId   String
+  startDate    DateTime
+  endDate      DateTime
+  type         LeaveType  @default(CASUAL)
+  reason       String?
+  status       LeaveStatus @default(PENDING)
+  approvedById String?
+  approvedAt   DateTime?
+
+  employee User  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  approver User? @relation("ApprovedLeaves", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([employeeId])
+}
+
+model Holiday {
+  id   String   @id @default(cuid())
+  name String
+  date DateTime
+  type String   @default("GAZETTED")
+
+  @@unique([date])
+}
+
+model FileAsset {
+  id           String   @id @default(cuid())
+  name         String
+  originalName String
+  mimeType     String
+  size         Int
+  url          String
+  key          String?
+  folder       String   @default("General")
+  clientId     String?
+  taskId       String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  client     Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  task       Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([folder])
+  @@index([clientId])
+}
+
+model Setting {
+  id        String @id @default(cuid())
+  key       String @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model KpiConfig {
+  id     String @id @default(cuid())
+  key    String @unique
+  name   String
+  weight Float
+  order  Int    @default(0)
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  userEmail String?
+  action    String
+  entity    String
+  entityId  String?
+  before    Json?
+  after     Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
