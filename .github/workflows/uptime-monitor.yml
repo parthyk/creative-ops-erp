@@ -1,0 +1,66 @@
+name: Uptime Monitor
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check API health
+        id: health
+        run: |
+          CODE=$(curl -sS -o /tmp/health.json -w "%{http_code}" --max-time 30 \
+            https://creative-ops-erp-api.onrender.com/api/v1/health)
+          echo "status_code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "HTTP $CODE"
+          cat /tmp/health.json || true
+
+      - name: Open issue on failure
+        if: steps.health.outputs.status_code != '200'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['uptime'],
+            });
+            if (data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'API down - health check failed',
+                body: `API health check returned HTTP ${{ steps.health.outputs.status_code }} at ${new Date().toISOString()}.\n\nCheck https://creative-ops-erp-api.onrender.com/api/v1/health`,
+                labels: ['uptime'],
+              });
+            }
+
+      - name: Close issue on recovery
+        if: steps.health.outputs.status_code == '200'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['uptime'],
+            });
+            for (const issue of data) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `API is back up (HTTP 200) at ${new Date().toISOString()}. Closing.`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+              });
+            }

@@ -1,94 +1,144 @@
 # Creative Operations ERP
 
-A premium SaaS-grade Creative Operations ERP for marketing agencies — inspired by Linear, Notion, Stripe, Vercel, Framer, Arc Browser and ClickUp. Track creative productivity, daily tasks, stakeholder assignments, client management and KPI analytics.
+A full-stack ERP for creative agencies — manage tasks, projects, clients, and employees with realtime updates, KPIs, and reports.
 
-## Stack
+- **Frontend:** Next.js 14 (App Router) — `apps/web`
+- **Backend:** NestJS REST API + Socket.IO realtime — `apps/api`
+- **Database:** PostgreSQL (Prisma ORM)
+- **Cache:** Redis (bundled in the Docker container on Render free tier)
+- **File storage:** Cloudflare R2 (S3-compatible, persistent)
 
-- **Frontend**: Next.js 15, React 19, TypeScript, TailwindCSS, shadcn-style UI, Framer Motion, GSAP, Recharts, TanStack Table, React Flow (xyflow)
-- **Backend**: NestJS, Prisma ORM, PostgreSQL, Redis, Socket.IO, JWT + refresh tokens, RBAC
-- **Storage**: PostgreSQL + optional Cloudflare R2 / AWS S3
+## Live demo
 
-## Project layout
+| Component | URL |
+|---|---|
+| Web app | https://web-pi-rose-49.vercel.app |
+| API | https://creative-ops-erp-api.onrender.com |
+| Health check | https://creative-ops-erp-api.onrender.com/api/v1/health |
 
-```
-creative-ops-erp/
-├── docker-compose.yml      # PostgreSQL + Redis
-├── apps/
-│   ├── api/                 # NestJS backend (port 4000)
-│   └── web/                  # Next.js frontend (port 3000)
-```
+### Demo logins
+
+| Role | Email | Password | Portal |
+|---|---|---|---|
+| Manager (admin) | `admin@onedot.com` | `Admin@123` | `MANAGER` |
+| Employee | `sneha@onedot.com` | `Pass@123` | `EMPLOYEE` |
+
+More seeded employees: `sathiya@`, `robin@`, `priya@`, `karthik@`, `meera@`, `arjun@` (all `@onedot.com`, password `Pass@123`).
+
+## Tech stack
+
+- **Monorepo:** npm workspaces (`apps/api`, `apps/web`)
+- **API:** NestJS, Prisma, Socket.IO, JWT auth (access + refresh), role-based access control (MANAGER / EMPLOYEE)
+- **Web:** Next.js 14, Tailwind CSS, react-query, socket.io-client
+- **Deployment:** Render (API + Postgres), Vercel (web), Cloudflare R2 (files), GitHub Actions (auto-deploy)
 
 ## Getting started
 
-### 1. Infrastructure (PostgreSQL + Redis)
+### Prerequisites
 
-Install [Docker](https://docker.com) then:
+- Node.js >= 20
+- Docker (for local Postgres + Redis)
 
-```bash
-npm run db:up         # docker compose up -d
-```
-
-> No Docker? Install PostgreSQL 16 + Redis locally and point `DATABASE_URL` and `REDIS_URL` in `apps/api/.env`.
-
-### 2. Configure environment
-
-```bash
-copy .env.example .env
-copy apps\api\.env.example apps\api\.env
-copy apps\web\.env.local.example apps\web\.env.local
-```
-
-Edit the secrets in `apps/api/.env` (JWT secrets, database URL).
-
-### 3. Install dependencies & prepare the database
+### 1. Install
 
 ```bash
 npm install
-npm run db:generate          # prisma generate
-npm run db:push              # push schema to DB
-npm run db:seed              # seed demo data (admin + employees + clients + tasks)
+```
+
+### 2. Local database
+
+```bash
+npm run db:up        # starts Postgres + Redis via docker compose
+npm run db:generate  # generates Prisma client
+npm run db:push      # applies schema
+npm run db:seed      # seeds 8 users + demo data
+```
+
+### 3. Configure env vars
+
+```bash
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.local.example apps/web/.env.local
+```
+
+Set a `JWT_SECRET` and `JWT_REFRESH_SECRET` in `apps/api/.env`, then in `apps/web/.env.local`:
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:4000
+NEXT_PUBLIC_SOCKET_URL=http://localhost:4000
 ```
 
 ### 4. Run
 
 ```bash
-npm run dev                  # API on :4000, Web on :3000
+npm run dev          # API on :4000 + web on :3000
 ```
 
-Open http://localhost:3000
+## API overview
 
-## Demo accounts (from seed)
+All routes are prefixed with `/api/v1` and require a `Bearer` token except `auth/login`.
 
-| Role      | Email                 | Password   |
-|-----------|-----------------------|------------|
-| Manager   | `admin@onedot.com`    | `Admin@123`|
-| Employee  | `sneha@onedot.com`    | `Pass@123` |
+| Area | Routes |
+|---|---|
+| Auth | `POST /auth/login`, `POST /auth/refresh`, `GET /auth/me` |
+| Dashboard | `GET /dashboard/summary`, `/ranking`, `/growth`, `/trend`, `/departments` |
+| Tasks | `GET /tasks`, `/tasks/kanban`, `/tasks/my-day`, `/tasks/calendar`, `/tasks/overdue`, `GET/PATCH/DELETE /tasks/:id`, `POST /tasks`, `PATCH /tasks/:id/status`, `POST /tasks/:id/reassign`, `POST /tasks/:id/comments` |
+| Reports | `GET /reports/tasks`, `/reports/employees`, `/reports/kpi` (MANAGER only) |
+| Users | `GET /users` (MANAGER only) |
+| Clients | `GET/POST /clients`, stakeholder management |
+| Calendar | `GET /calendar/holidays`, `/calendar/leaves` |
+| Files | `POST /files/upload` |
+| Misc | `GET /activity`, `/notifications`, `/settings`, `/settings/kpi`, `/ai/summary` |
+| Health | `GET /health` (public) |
 
-- `admin@onedot.com` → Management portal (full control)
-- any employee email → Employee portal (limited access)
+Login expects `{ email, password, portal }` where `portal` is `MANAGER` or `EMPLOYEE`.
 
-## Backend-only / Frontend-only
+## Realtime events (Socket.IO)
+
+The web app connects to `NEXT_PUBLIC_SOCKET_URL` and receives events in realtime:
+
+- `task.created`, `task.updated`, `task.assigned`, `task.commented`
+- `client.created`, `stakeholder.changed`
+- `notification`
+
+## Storage
+
+Set `STORAGE_DRIVER=local` for disk storage, or `r2` for Cloudflare R2 (persistent, survives redeploys):
+
+```
+STORAGE_DRIVER=r2
+S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+S3_REGION=auto
+S3_ACCESS_KEY=...
+S3_SECRET_KEY=...
+S3_BUCKET=...
+S3_PUBLIC_URL=https://pub-<bucket-id>.r2.dev
+```
+
+## Deployment
+
+### Render (API + Postgres)
+
+`render.yaml` describes the stack (blueprint). The API runs in Docker with a bundled Redis sidecar (`entrypoint.sh`), connected to a managed Postgres. Pushes to `main` auto-deploy via the GitHub Action in `.github/workflows/deploy-render.yml` (uses `RENDER_API_KEY` and `RENDER_SERVICE_ID` secrets).
+
+### Vercel (web)
+
+From `apps/web`:
 
 ```bash
-npm run dev -w apps/api       # API only
-npm run dev -w apps/web       # Web only
+vercel --prod
 ```
 
-## Building for production
+Set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SOCKET_URL` to the Render API URL in production.
 
-```bash
-npm run build
-npm start
+## Project structure
+
 ```
-
-## Environment variables (apps/api/.env)
-
-| Variable                 | Description                            |
-| ------------------------- | -------------------------------------- |
-| `DATABASE_URL`           | PostgreSQL connection string           |
-| `REDIS_URL`              | Redis connection string                |
-| `JWT_SECRET`             | Access token secret                    |
-| `JWT_REFRESH_SECRET`     | Refresh token secret                   |
-| `PORT`                   | API port (default 4000)                |
-| `CORS_ORIGIN`            | Allowed web origin(s)                  |
-| `S3_*`                   | Optional Cloudflare R2/AWS S3 storage  |
+apps/
+  api/       NestJS REST API + Socket.IO + Prisma
+  web/       Next.js frontend
+.github/
+  workflows/ GitHub Action for Render auto-deploy
+entrypoint.sh   Starts bundled Redis, then the API (Docker)
+render.yaml     Render blueprint (API + Postgres)
+```
