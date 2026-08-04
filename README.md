@@ -144,3 +144,5 @@ apps/
 entrypoint.sh   Starts bundled Redis, then the API (Docker)
 render.yaml     Render blueprint (API + Postgres)
 ```
+
+- Web app auto-deploys to Vercel on push to `main` (connected to the `web` project).
