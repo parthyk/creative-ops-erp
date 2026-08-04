@@ -1,0 +1,10 @@
+node_modules
+.git
+.next
+dist
+apps/api/dist
+apps/web/.next
+uploads
+logs
+*.log
+.dev
