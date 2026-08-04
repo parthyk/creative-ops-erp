@@ -44,11 +44,6 @@ export class AuthService {
     const expiresIn = parseInt(this.config.get('REFRESH_TOKEN_TTL', '604800'), 10);
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
-    const signed = this.jwt.sign(
-      { sub: user.id, jti, type: 'refresh' },
-      { expiresIn, secret: this.config.get('JWT_REFRESH_SECRET') },
-    );
-
     await this.prisma.refreshToken.create({
       data: {
         tokenHash: hashToken(raw),
@@ -94,21 +89,14 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string, ip?: string, userAgent?: string) {
-    let payload: { sub: string; jti: string };
-    try {
-      payload = this.jwt.verify(refreshToken, { secret: this.config.get('JWT_REFRESH_SECRET') }) as any;
-    } catch {
+    const record = await this.prisma.refreshToken.findFirst({
+      where: { tokenHash: hashToken(refreshToken), revokedAt: null },
+    });
+    if (!record || record.expiresAt < new Date()) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const record = await this.prisma.refreshToken.findFirst({
-      where: { jti: payload.jti, revokedAt: null },
-    });
-    if (!record || record.expiresAt < new Date()) {
-      throw new UnauthorizedException('Refresh token has been revoked or expired');
-    }
-
-    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+    const user = await this.prisma.user.findUnique({ where: { id: record.userId } });
     if (!user || user.status !== 'ACTIVE') {
       throw new UnauthorizedException('Account no longer valid');
     }
