@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   description: 'Creative Operations ERP for marketing agencies',
 };
 
+// Render every route on-demand. Prevents Vercel serving stale statically-prerendered
+// shells (e.g. /dashboard, /kpi) whose HTML mismatches the deployed JS bundle, which
+// broke client hydration and left data-driven pages stuck on their loading skeleton.
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
