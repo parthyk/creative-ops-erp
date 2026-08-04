@@ -20,7 +20,7 @@ services:
       - key: STORAGE_DRIVER
         value: local
       - key: REDIS_URL
-        sync: false
+        value: redis://localhost:6379
       - key: JWT_SECRET
         sync: false
       - key: JWT_REFRESH_SECRET
