@@ -76,6 +76,8 @@ npm run dev          # API on :4000 + web on :3000
 
 ## API overview
 
+See the full [API reference](docs/api-reference.md) and [deployment guide](docs/deployment.md).
+
 All routes are prefixed with `/api/v1` and require a `Bearer` token except `auth/login`.
 
 | Area | Routes |
